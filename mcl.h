@@ -28,6 +28,12 @@
 #include <qgsmaptoolemitpoint.h>
 #include <qgscategorizedsymbolrenderer.h>
 #include <qlabel.h>
+#include <qgslayertreeview.h>
+#include <qdialogbuttonbox.h>
+#include <qgslayertreemodel.h>
+#include <qgslayertree.h>
+#include <qgslayertreemapcanvasbridge.h>
+#include <qgslayertreenode.h>
 
 #include <QObject>
 
@@ -39,7 +45,6 @@ public:
     void mouseMoveEvent(QMouseEvent *event);
 
     MCL(QWidget *parent = nullptr);
-    QgsVectorLayer& GetLayer();
     std::pair<double, double> GetCoords();
     QgsPointXY cursor_point;
     virtual ~MCL();
@@ -47,7 +52,6 @@ signals:
     void send_coords(double lat, double lon);
 
 private:
-    QgsVectorLayer vl;
     double curr_x;
     double curr_y;
 

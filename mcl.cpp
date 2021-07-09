@@ -1,21 +1,13 @@
 #include "mcl.h"
 
-MCL::MCL(QWidget *parent) : QgsMapCanvas(parent), vl("/home/mihail/dev/Rossiya_Demogr.shp")
+MCL::MCL(QWidget *parent) : QgsMapCanvas(parent)
 {
 
-QList<QgsMapLayer*> list_;
-list_.append(&vl);
 
-this->setLayers(list_);
-this->setExtent(vl.extent());
-
-setMouseTracking(true);
+    setMouseTracking(true);
 
 }
 
-QgsVectorLayer& MCL::GetLayer() {
-    return vl;
-}
 
 void MCL::mouseMoveEvent(QMouseEvent *event){
      cursor_point = this->getCoordinateTransform()->toMapCoordinates(event->pos().x(),event->pos().y());
