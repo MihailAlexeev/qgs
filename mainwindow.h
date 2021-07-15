@@ -7,7 +7,6 @@
 #include <QPushButton>
 #include <QDockWidget>
 #include "mcl.h"
-
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
@@ -23,6 +22,7 @@ public:
 public slots:
     void update_status_bar_coords(double lat, double lon);
 
+
 private slots:
     void clickedbutton();
     void choosenoption(int index);
@@ -31,6 +31,8 @@ private slots:
     void trj_input(QString str);
     void type_option(int index);
     void clickedaddbutton();
+    void clickeddelbutton();
+    void opendb();
 private:
 
 
@@ -38,6 +40,7 @@ private:
         QgsVectorLayer* type_layer = new QgsVectorLayer("Point", "Points","memory");
         QgsVectorLayer* linea = new QgsVectorLayer("LineString?crs=epsg:4326&field=id:integer&index=yes","Trajectories","memory");
         QgsVectorLayer* vl = new QgsVectorLayer("/home/mihail/dev/Rossiya_Demogr.shp", "Main Layer");
+
         enum TYPES {
             type1,
             type2,
@@ -45,10 +48,13 @@ private:
         };
 
         int param = 0;
-        std::vector<QgsPoint> xys;
-        std::vector<std::pair<int, TYPES>> trj_and_type;
+
+        int num_points = 0;
+        int num_trjs = 0;
 
         std::map<int, QVector<QgsPoint>> trj_to_point;
+        std::map<int, QgsFeatureId> trj_to_fid;
+        std::map<std::tuple<double, double, int>, QgsFeatureId> xytr_to_fid;
 
         double curr_x;
         double curr_y;
@@ -71,6 +77,7 @@ private:
 
 
         QPushButton* add_button;
+        QPushButton* del_button;
 
         QDialog* dialog;
         QDialogButtonBox* btn_box;
@@ -80,5 +87,10 @@ private:
         QgsLayerTreeModel* treemodel;
         QgsLayerTreeView* treeview;
         QgsLayerTreeMapCanvasBridge* bridge;
+
+
+        QToolBar* toolbar;
+
+
 };
 #endif // MAINWINDOW_H

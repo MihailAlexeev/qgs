@@ -92,12 +92,17 @@ MainWindow::MainWindow(QWidget *parent)
 
 
     add_button = new QPushButton(dock2);
-
-    QHBoxLayout* lay2 = new QHBoxLayout();
     add_button->setText("+");
     add_button->setToolTip("Добавить точку");
+    del_button = new QPushButton(dock2);
+    del_button->setText("-");
+    del_button->setToolTip("Удалить точку");
+    QHBoxLayout* lay2 = new QHBoxLayout();
+
     lay2->addWidget(add_button);
+    lay2->addWidget(del_button);
     connect(add_button, SIGNAL(clicked()), this, SLOT(clickedaddbutton()));
+    connect(del_button, SIGNAL(clicked()), this, SLOT(clickeddelbutton()));
 
     QVBoxLayout* lay_v = new QVBoxLayout();
     lay_v->addLayout(lay2);
@@ -109,6 +114,13 @@ MainWindow::MainWindow(QWidget *parent)
 
     addDockWidget(Qt::RightDockWidgetArea, dock2);
 
+    toolbar = new QToolBar(this);
+    toolbar->setMovable(false);
+    const QIcon newIcon = QIcon::fromTheme("document-new", QIcon(":/images/new.png"));
+    QAction *newAct = new QAction(newIcon, tr("Открыть БД"), this);
+
+    toolbar->addAction(newAct);
+    addToolBar(Qt::ToolBarArea::TopToolBarArea, toolbar);
 
     canv.setExtent(vl->extent());
     canv.setLayers({vl});
@@ -118,7 +130,7 @@ MainWindow::MainWindow(QWidget *parent)
 
 
     connect(&canv, &MCL::send_coords, this, &MainWindow::update_status_bar_coords);
-
+    connect(newAct, &QAction::triggered, this, &MainWindow::opendb);
 }
 
 
@@ -252,11 +264,23 @@ void MainWindow::clickedaddbutton() {
     dialog->setLayout(lay1);
     dialog->show();
     if (dialog->exec() == QDialog::Accepted) {
+        num_points++;
+        xytr_to_fid[std::tie(curr_x, curr_y, curr_trj)] = num_points;
+        if (trj_to_point[curr_trj].size() == 1) {
+            num_trjs++;
+            trj_to_fid[curr_trj] = num_trjs;
+        }
 
-        xys.push_back({curr_x, curr_y});
-        trj_and_type.push_back(std::make_pair(curr_trj, curr_type));
+        trj_to_point[curr_trj].push_back(QgsPoint(curr_x, curr_y));
 
-        trj_to_point[curr_trj].push_back(xys.back());
+
+
+        if (trj_to_point[curr_trj].size() > 2) {
+            linea->startEditing();
+            QgsGeometry geom = QgsGeometry::fromPolyline(trj_to_point[curr_trj]);
+            linea->changeGeometry(trj_to_fid[curr_trj], geom);
+            linea->commitChanges();
+        } else if (trj_to_point[curr_trj].size() == 2) {
         linea->startEditing();
         QgsFeature line;
 
@@ -264,12 +288,15 @@ void MainWindow::clickedaddbutton() {
         line.setAttributes({1});
         linea->addFeature(line);
         linea->commitChanges();
+        }
+
+
 
         QgsFeature feat;
         feat.setFields(type_layer->fields());
         feat.setAttributes({QVariant::Int, QVariant::Int});
-        int i = xys.size();
-        feat.setAttribute("fid", i);
+
+        feat.setAttribute("fid", num_points);
         if (curr_type == TYPES::type1) {
             feat.setAttribute("ftype", 1);
         }
@@ -280,11 +307,13 @@ void MainWindow::clickedaddbutton() {
             feat.setAttribute("ftype", 3);
         }
 
-        feat.setGeometry(QgsGeometry::fromPointXY(QgsPointXY(xys.back().x(), xys.back().y())));
+        feat.setGeometry(QgsGeometry::fromPointXY(QgsPointXY(curr_x, curr_y)));
         type_layer->startEditing();
         type_layer->addFeature(feat);
         type_layer->updateExtents();
         type_layer->commitChanges();
+
+
 
 
         QList<QgsMapLayer*> list;
@@ -302,12 +331,79 @@ void MainWindow::clickedaddbutton() {
         lon->clear();
         trj->clear();
 
+
+
         canv.zoomToSelected(vl);
     }
 
 }
 
+void MainWindow::clickeddelbutton() {
+    dialog = new QDialog(this);
+    dialog->setWindowTitle(tr("Удалить точку"));
 
+    btn_box = new QDialogButtonBox(dialog);
+    btn_box->setStandardButtons(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+    connect(btn_box, &QDialogButtonBox::accepted, dialog, &QDialog::accept);
+    connect(btn_box, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
+
+    lat = new QLineEdit(dialog);
+    lat->setPlaceholderText("lat");
+    lat->setMaximumWidth(40);
+    connect(lat, SIGNAL(textChanged(QString)), this, SLOT(lat_input(QString)));
+
+    lon = new QLineEdit(dialog);
+    lon->setPlaceholderText("lon");
+    lon->setMaximumWidth(40);
+    connect(lon, SIGNAL(textChanged(QString)), this, SLOT(lon_input(QString)));
+
+    trj = new QLineEdit(dialog);
+    trj->setPlaceholderText("trj");
+    trj->setMaximumWidth(40);
+    connect(trj, SIGNAL(textChanged(QString)), this, SLOT(trj_input(QString)));
+
+    QHBoxLayout* lay = new QHBoxLayout();
+    lay->addWidget(lat);
+    lay->addWidget(lon);
+    lay->addWidget(trj);
+    QVBoxLayout* lay1 = new QVBoxLayout();
+    lay1->addLayout(lay);
+
+    lay1->addWidget(btn_box);
+    dialog->setLayout(lay1);
+    dialog->show();
+    if (dialog->exec() == QDialog::Accepted) {
+
+        type_layer->startEditing();
+        auto num = type_layer->getFeature(xytr_to_fid[std::tie(curr_x, curr_y, curr_trj)]).attribute(0).toInt();
+        type_layer->deleteFeature(xytr_to_fid[std::tie(curr_x, curr_y, curr_trj)]);
+
+        xytr_to_fid.erase(std::tie(curr_x, curr_y, curr_trj));
+
+        for (auto& item : xytr_to_fid) {
+            if (type_layer->getFeature(item.second).attribute(0).toInt() >= num) {
+                type_layer->changeAttributeValue(item.second, 0, type_layer->getFeature(item.second).attribute(0).toInt() - 1);
+            }
+        }
+
+        type_layer->commitChanges();
+        canv.redrawAllLayers();
+
+        num_points--;
+
+        auto it = std::find(trj_to_point[curr_trj].begin(), trj_to_point[curr_trj].end(), QgsPoint(curr_x, curr_y));
+        trj_to_point[curr_trj].erase(it);
+
+        linea->startEditing();
+        QgsGeometry geom = QgsGeometry::fromPolyline(trj_to_point[curr_trj]);
+        linea->changeGeometry(trj_to_fid[curr_trj], geom);
+        linea->commitChanges();
+    }
+}
+
+void MainWindow::opendb() {
+    std::cout << "Open db" << std::endl;
+}
 
 MainWindow::~MainWindow()
 {

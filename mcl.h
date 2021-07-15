@@ -1,5 +1,6 @@
 #ifndef MCL_H
 #define MCL_H
+#include <algorithm>
 #include <qgsmapcanvas.h>
 #include <qgsvectorlayer.h>
 #include <qgsmaplayer.h>
@@ -34,8 +35,12 @@
 #include <qgslayertree.h>
 #include <qgslayertreemapcanvasbridge.h>
 #include <qgslayertreenode.h>
-
+#include <qtoolbar.h>
 #include <QObject>
+#include <QtSql>
+#include <QTableView>
+#include <QSqlTableModel>
+
 
 class MCL : public QgsMapCanvas {
     Q_OBJECT
