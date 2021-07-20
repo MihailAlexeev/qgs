@@ -15,12 +15,26 @@ MainWindow::MainWindow(QWidget *parent)
                                          QgsField("ftype", QVariant::Int)});
     type_layer->updateFields();
 
+    linea->startEditing();
+    linea->dataProvider()->addAttributes({QgsField("trj_num", QVariant::String)});
+    linea->updateFields();
+
+
     type_layer->setLabelsEnabled(true);
     QgsPalLayerSettings pls;
     pls.fieldName = "fid";
     pls.placement = QgsPalLayerSettings::Placement::Line;
     QgsVectorLayerSimpleLabeling* simple_label = new QgsVectorLayerSimpleLabeling(pls);
     type_layer->setLabeling(simple_label);
+
+    linea->setLabelsEnabled(true);
+    QgsPalLayerSettings pls1;
+    pls1.fieldName = "trj_num";
+    pls1.placement = QgsPalLayerSettings::Placement::Line;
+    QgsVectorLayerSimpleLabeling* simple_label1 = new QgsVectorLayerSimpleLabeling(pls1);
+    linea->setLabeling(simple_label1);
+    linea->commitChanges();
+
 
     QgsMarkerSymbol* s1 = QgsMarkerSymbol::createSimple({{"name", "circle"}, {"color", "white"}});
     QgsMarkerSymbol* s2 = QgsMarkerSymbol::createSimple({{"name", "circle"}, {"color", "blue"}});
@@ -37,12 +51,14 @@ MainWindow::MainWindow(QWidget *parent)
     type_layer->commitChanges();
 
     QgsLineSymbol* s4 = QgsLineSymbol::createSimple({{"color", "black"}});
+    s4->setWidth(1);
     QgsSingleSymbolRenderer* r4 = new QgsSingleSymbolRenderer (s4);
     linea->setRenderer(r4);
 
 
     QDockWidget* dock = new QDockWidget(this);
     dock->setMaximumWidth(200);
+    dock->setFixedHeight(100);
     dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
     dock->setWindowTitle("Choose CRS");
 
@@ -79,6 +95,7 @@ MainWindow::MainWindow(QWidget *parent)
     dock2->setWindowTitle("Слои");
 
     QgsProject::instance()->addMapLayer(vl);
+
 
     treeview = new QgsLayerTreeView(dock2);
     treemodel = new QgsLayerTreeModel(QgsProject::instance()->layerTreeRoot());
@@ -124,12 +141,16 @@ MainWindow::MainWindow(QWidget *parent)
 
     canv.setExtent(vl->extent());
     canv.setLayers({vl});
+    QgsCoordinateReferenceSystem crs("EPSG:4326");
+    canv.setDestinationCrs(crs);
+    canv.refresh();
 
     ui->setupUi(this);
     setCentralWidget(&canv);
 
 
     connect(&canv, &MCL::send_coords, this, &MainWindow::update_status_bar_coords);
+    connect(&canv, &MCL::send_p, this, &MainWindow::status_point);
     connect(newAct, &QAction::triggered, this, &MainWindow::opendb);
 }
 
@@ -147,7 +168,7 @@ void MainWindow::clickedbutton() {
         canv.setDestinationCrs(crs);
         canv.refresh();
     }
-    canv.zoomToSelected(vl);
+//    canv.zoomToFullExtent();
 }
 
 void MainWindow::choosenoption(int index) {
@@ -166,38 +187,24 @@ void MainWindow::choosenoption(int index) {
 
 
 
-void MainWindow::lat_input(QString str) {
-    std::string s = str.toStdString();
-    for (auto it = s.begin(); it != s.end(); it++) {
-        if (!std::isdigit(*it) && *it != '-' && *it != '.') {
-            throw std::invalid_argument("LAT IS DOUBLE");
-        }
-    }
-    std::istringstream is(s);
+void MainWindow::lat_input(QString s) {
+    std::istringstream is(s.toStdString());
     is >> curr_x;
 }
 
-void MainWindow::lon_input(QString str1) {
-    std::string s = str1.toStdString();
-    for (auto it = s.begin(); it != s.end(); it++) {
-        if (!std::isdigit(*it) && *it != '-' && *it != '.') {
-            throw std::invalid_argument("LON IS DOUBLE");
-        }
-    }
-    std::istringstream is(s);
-
+void MainWindow::lon_input(QString s) {
+    std::istringstream is(s.toStdString());
     is >> curr_y;
 }
 
-void MainWindow::trj_input(QString str2) {
-    std::string s = str2.toStdString();
-    for (auto it = s.begin(); it != s.end(); it++) {
-        if (!std::isdigit(*it)) {
-            throw std::invalid_argument("TRJ IS POS INT");
-        }
-    }
-    std::istringstream is(s);
+void MainWindow::trj_input(QString s) {
+    std::istringstream is(s.toStdString());
     is >> curr_trj;
+}
+
+void MainWindow::point_num(QString s) {
+    std::istringstream is(s.toStdString());
+    is >> curr_num;
 }
 
 void MainWindow::type_option(int index) {
@@ -221,6 +228,11 @@ void MainWindow::update_status_bar_coords(double lat, double lon)
 }
 
 
+void MainWindow::status_point(double lat, double lon, QgsFeatureId fid) {
+    ui->statusbar->showMessage("Point X: " + QString().setNum(lat) + ", Point Y: " + QString().setNum(lon));
+}
+
+
 void MainWindow::clickedaddbutton() {
     dialog = new QDialog(this);
     dialog->setWindowTitle(tr("Добавить точку"));
@@ -231,16 +243,19 @@ void MainWindow::clickedaddbutton() {
     connect(btn_box, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
 
     lat = new QLineEdit(dialog);
+    lat->setValidator(new QDoubleValidator(-200, 200, 2, this));
     lat->setPlaceholderText("lat");
     lat->setMaximumWidth(40);
     connect(lat, SIGNAL(textChanged(QString)), this, SLOT(lat_input(QString)));
 
     lon = new QLineEdit(dialog);
+    lon->setValidator(new QDoubleValidator(-200, 200, 2, this));
     lon->setPlaceholderText("lon");
     lon->setMaximumWidth(40);
     connect(lon, SIGNAL(textChanged(QString)), this, SLOT(lon_input(QString)));
 
     trj = new QLineEdit(dialog);
+    trj->setValidator(new QIntValidator(1, 100, this));
     trj->setPlaceholderText("trj");
     trj->setMaximumWidth(40);
     connect(trj, SIGNAL(textChanged(QString)), this, SLOT(trj_input(QString)));
@@ -263,7 +278,9 @@ void MainWindow::clickedaddbutton() {
     lay1->addWidget(btn_box);
     dialog->setLayout(lay1);
     dialog->show();
-    if (dialog->exec() == QDialog::Accepted) {
+    if (dialog->exec() == QDialog::Accepted) {       
+
+
         num_points++;
         xytr_to_fid[std::tie(curr_x, curr_y, curr_trj)] = num_points;
         if (trj_to_point[curr_trj].size() == 1) {
@@ -283,9 +300,11 @@ void MainWindow::clickedaddbutton() {
         } else if (trj_to_point[curr_trj].size() == 2) {
         linea->startEditing();
         QgsFeature line;
-
+        line.setFields(linea->fields());
+        line.setAttributes({QVariant::Int, QVariant::String});
+        QString nomer = ("Траектория " + QString::number(num_trjs));
+        line.setAttribute("trj_num", nomer);
         line.setGeometry(QgsGeometry::fromPolyline(trj_to_point[curr_trj]));
-        line.setAttributes({1});
         linea->addFeature(line);
         linea->commitChanges();
         }
@@ -296,7 +315,7 @@ void MainWindow::clickedaddbutton() {
         feat.setFields(type_layer->fields());
         feat.setAttributes({QVariant::Int, QVariant::Int});
 
-        feat.setAttribute("fid", num_points);
+        feat.setAttribute("fid", trj_to_point[curr_trj].size());
         if (curr_type == TYPES::type1) {
             feat.setAttribute("ftype", 1);
         }
@@ -335,6 +354,7 @@ void MainWindow::clickedaddbutton() {
 
         canv.zoomToSelected(vl);
     }
+    delete dialog;
 
 }
 
@@ -347,24 +367,20 @@ void MainWindow::clickeddelbutton() {
     connect(btn_box, &QDialogButtonBox::accepted, dialog, &QDialog::accept);
     connect(btn_box, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
 
-    lat = new QLineEdit(dialog);
-    lat->setPlaceholderText("lat");
-    lat->setMaximumWidth(40);
-    connect(lat, SIGNAL(textChanged(QString)), this, SLOT(lat_input(QString)));
-
-    lon = new QLineEdit(dialog);
-    lon->setPlaceholderText("lon");
-    lon->setMaximumWidth(40);
-    connect(lon, SIGNAL(textChanged(QString)), this, SLOT(lon_input(QString)));
+    num = new QLineEdit(dialog);
+    num->setValidator(new QIntValidator(1, 200, this));
+    num->setPlaceholderText("Ноомер точки");
+    num->setMaximumWidth(120);
+    connect(num, SIGNAL(textChanged(QString)), this, SLOT(point_num(QString)));
 
     trj = new QLineEdit(dialog);
+    trj->setValidator(new QIntValidator(1, 100, this));
     trj->setPlaceholderText("trj");
     trj->setMaximumWidth(40);
     connect(trj, SIGNAL(textChanged(QString)), this, SLOT(trj_input(QString)));
 
     QHBoxLayout* lay = new QHBoxLayout();
-    lay->addWidget(lat);
-    lay->addWidget(lon);
+    lay->addWidget(num);
     lay->addWidget(trj);
     QVBoxLayout* lay1 = new QVBoxLayout();
     lay1->addLayout(lay);
@@ -373,26 +389,32 @@ void MainWindow::clickeddelbutton() {
     dialog->setLayout(lay1);
     dialog->show();
     if (dialog->exec() == QDialog::Accepted) {
+        curr_x = trj_to_point[curr_trj][curr_num - 1].x();
+        curr_y = trj_to_point[curr_trj][curr_num - 1].y();
+
 
         type_layer->startEditing();
-        auto num = type_layer->getFeature(xytr_to_fid[std::tie(curr_x, curr_y, curr_trj)]).attribute(0).toInt();
+        auto numb = type_layer->getFeature(xytr_to_fid[std::tie(curr_x, curr_y, curr_trj)]).attribute(0).toInt();
         type_layer->deleteFeature(xytr_to_fid[std::tie(curr_x, curr_y, curr_trj)]);
 
         xytr_to_fid.erase(std::tie(curr_x, curr_y, curr_trj));
 
-        for (auto& item : xytr_to_fid) {
-            if (type_layer->getFeature(item.second).attribute(0).toInt() >= num) {
-                type_layer->changeAttributeValue(item.second, 0, type_layer->getFeature(item.second).attribute(0).toInt() - 1);
+        auto it = std::find(trj_to_point[curr_trj].begin(), trj_to_point[curr_trj].end(), QgsPoint(curr_x, curr_y));
+        trj_to_point[curr_trj].erase(it);
+
+        for (const auto& item : trj_to_point[curr_trj]) {
+            double x = item.x();
+            double y = item.y();
+            if (type_layer->getFeature(xytr_to_fid[std::tie(x, y, curr_trj)]).attribute(0).toInt() >= numb) {
+                type_layer->changeAttributeValue(xytr_to_fid[std::tie(x, y, curr_trj)], 0,
+                        type_layer->getFeature(xytr_to_fid[std::tie(x, y, curr_trj)]).attribute(0).toInt() - 1);
             }
         }
 
         type_layer->commitChanges();
         canv.redrawAllLayers();
 
-        num_points--;
 
-        auto it = std::find(trj_to_point[curr_trj].begin(), trj_to_point[curr_trj].end(), QgsPoint(curr_x, curr_y));
-        trj_to_point[curr_trj].erase(it);
 
         linea->startEditing();
         QgsGeometry geom = QgsGeometry::fromPolyline(trj_to_point[curr_trj]);
@@ -402,7 +424,7 @@ void MainWindow::clickeddelbutton() {
 }
 
 void MainWindow::opendb() {
-    std::cout << "Open db" << std::endl;
+
 }
 
 MainWindow::~MainWindow()

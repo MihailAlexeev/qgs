@@ -40,13 +40,16 @@
 #include <QtSql>
 #include <QTableView>
 #include <QSqlTableModel>
-
+#include <qgsmaptoolidentifyfeature.h>
+#include <qmenu.h>
 
 class MCL : public QgsMapCanvas {
     Q_OBJECT
 
 public:
 
+
+    void mousePressEvent(QMouseEvent* e);
     void mouseMoveEvent(QMouseEvent *event);
 
     MCL(QWidget *parent = nullptr);
@@ -55,11 +58,12 @@ public:
     virtual ~MCL();
 signals:
     void send_coords(double lat, double lon);
+    void send_p(double lat, double lon, QgsFeatureId fid);
 
 private:
     double curr_x;
     double curr_y;
-
+    QgsMapToolIdentifyFeature* tool;
 };
 
 #endif // MCL_H

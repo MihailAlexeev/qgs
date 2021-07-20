@@ -7,6 +7,7 @@
 #include <QPushButton>
 #include <QDockWidget>
 #include "mcl.h"
+
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
@@ -21,6 +22,7 @@ public:
 
 public slots:
     void update_status_bar_coords(double lat, double lon);
+    void status_point(double lat, double lon, QgsFeatureId fid);
 
 
 private slots:
@@ -29,6 +31,7 @@ private slots:
     void lat_input(QString str);
     void lon_input(QString str);
     void trj_input(QString str);
+    void point_num(QString str);
     void type_option(int index);
     void clickedaddbutton();
     void clickeddelbutton();
@@ -59,6 +62,7 @@ private:
         double curr_x;
         double curr_y;
         int curr_trj;
+        int curr_num;
         TYPES curr_type = TYPES::type1;
 
         Ui::MainWindow *ui;
@@ -91,6 +95,6 @@ private:
 
         QToolBar* toolbar;
 
-
+        QLineEdit* num;
 };
 #endif // MAINWINDOW_H
